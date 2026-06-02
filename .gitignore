@@ -1,0 +1,5 @@
+data/cache/*.rds
+.Rhistory
+.RData
+.Rproj.user/
+.DS_Store
