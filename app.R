@@ -158,31 +158,66 @@ server <- function(input, output, session) {
     methodology_field_table()
   }, options = list(pageLength = 20))
 
-  selected_games <- reactive({
+  selected_player_id <- reactive({
     req(input$player_id)
-    get_player_games(
+    as.character(input$player_id)
+  })
+  
+  selected_games <- reactive({
+    req(selected_player_id(), input$last_n)
+    
+    df <- get_player_games(
       game_summary = cache$game_summary,
-      player_id = input$player_id,
+      selected_player_id = selected_player_id(),
       last_n = input$last_n
     )
+    
+    validate(
+      need(nrow(df) > 0, "No cached games found for this player.")
+    )
+    
+    df
+  })
+  
+  selected_game_ids <- reactive({
+    selected_games() |>
+      pull(game_id) |>
+      unique()
+  })
+  
+  selected_player_shots <- reactive({
+    pid <- selected_player_id()
+    gids <- selected_game_ids()
+    
+    df <- cache$shot_events |>
+      filter(
+        .data$player_id == pid,
+        .data$game_id %in% gids
+      )
+    
+    validate(
+      need(nrow(df) > 0, "No cached shot events found for this player/game selection.")
+    )
+    
+    df
   })
 
   output$player_title <- renderText({
-    df <- selected_games()
-    if (nrow(df) == 0) return("No cached games found")
-    df$player_name[1]
+    selected_games()$player_name[1]
   })
 
-  output$player_games <- renderText(nrow(selected_games()))
-
+  output$player_games <- renderText({
+    nrow(selected_games())
+  })
+  
   output$player_avg_sq <- renderText({
     scales::number(mean(selected_games()$avg_sq_score, na.rm = TRUE), accuracy = 0.01)
   })
-
+  
   output$player_avg_pq <- renderText({
     scales::number(mean(selected_games()$pq_score, na.rm = TRUE), accuracy = 0.01)
   })
-
+  
   output$player_fga <- renderText({
     sum(selected_games()$fga, na.rm = TRUE)
   })
@@ -190,8 +225,14 @@ server <- function(input, output, session) {
   output$player_sq_plot <- plotly::renderPlotly({
     df <- selected_games() |>
       mutate(
-        game_label = glue::glue("{matchup}<br>{game_date}<br>Avg SQ: {round(avg_sq_score, 2)}")
+        game_label = glue::glue(
+          "{matchup}<br>{game_date}<br>Avg SQ: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>PQ: {round(pq_score, 2)}"
+        )
       )
+    
+    validate(
+      need(nrow(df) > 0, "No games available for this player.")
+    )
     
     p <- ggplot(df, aes(x = game_date, y = avg_sq_score, text = game_label)) +
       geom_hline(
@@ -200,8 +241,7 @@ server <- function(input, output, session) {
         linewidth = 0.4,
         alpha = 0.6
       ) +
-      geom_line(linewidth = 0.8) +
-      geom_point(size = 2.8) +
+      geom_point(size = 3) +
       scale_y_continuous(
         limits = c(1, 9),
         breaks = seq(1, 9, by = 1)
@@ -215,7 +255,6 @@ server <- function(input, output, session) {
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold"),
-        plot.subtitle = element_text(size = 10),
         panel.grid.minor = element_blank()
       )
     
@@ -223,29 +262,36 @@ server <- function(input, output, session) {
   })
 
   output$player_bucket_plot <- plotly::renderPlotly({
-    req(input$player_id)
-
-    df <- cache$shot_events |>
-      filter(player_id == input$player_id) |>
+    df <- selected_player_shots() |>
       count(sq_bucket, name = "attempts") |>
-      mutate(sq_bucket = factor(sq_bucket, levels = c("9", "7", "5", "3", "1", "Prayer")))
-
+      mutate(
+        sq_bucket = factor(
+          sq_bucket,
+          levels = c("9", "7", "5", "3", "1", "Prayer")
+        )
+      )
+    
     p <- ggplot(df, aes(x = sq_bucket, y = attempts)) +
       geom_col() +
       labs(
         x = "Shot Quality Bucket",
         y = "Attempts",
-        title = "Shot Bucket Distribution"
+        title = "Shot Bucket Distribution",
+        subtitle = glue::glue("Filtered to selected player and last {input$last_n} games")
       ) +
-      theme_minimal()
-
+      theme_minimal(base_size = 13) +
+      theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank()
+      )
+    
     plotly::ggplotly(p)
   })
 
   output$player_game_log <- DT::renderDataTable({
     selected_games() |>
       select(
-        game_date, matchup, wl, min, fga, pts, ast, tov, stl, blk, oreb,
+        game_date, matchup, wl, min, fga, pts, ast, tov, stl, blk, oreb, pfd,
         avg_sq_score, shot_making_score, pq_score
       ) |>
       arrange(desc(game_date))
@@ -268,6 +314,12 @@ server <- function(input, output, session) {
   output$missing_fields_table <- DT::renderDataTable({
     missing_or_estimated_fields()
   }, options = list(pageLength = 20))
+  
+  observe({
+    message(glue::glue(
+      "Selected player_id={input$player_id}; last_n={input$last_n}"
+    ))
+  })
 }
 
 shinyApp(ui, server)

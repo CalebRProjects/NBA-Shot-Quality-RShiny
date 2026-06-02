@@ -34,14 +34,14 @@ build_player_summary <- function(game_summary) {
     arrange(desc(avg_pq_score))
 }
 
-get_player_games <- function(game_summary, player_id, last_n = 10) {
-  if (nrow(game_summary) == 0 || is.null(player_id) || player_id == "") {
+get_player_games <- function(game_summary, selected_player_id, last_n = 10) {
+  if (nrow(game_summary) == 0 || is.null(selected_player_id) || selected_player_id == "") {
     return(tibble::tibble())
   }
-
+  
   game_summary |>
-    filter(.data$player_id == as.character(player_id)) |>
-    arrange(desc(game_date)) |>
+    filter(.data$player_id == as.character(.env$selected_player_id)) |>
+    arrange(desc(.data$game_date)) |>
     slice_head(n = last_n) |>
-    arrange(game_date)
+    arrange(.data$game_date)
 }
