@@ -16,21 +16,23 @@ The current version is a working proof of concept. It is not intended to be a fi
 
 ## Current Status
 
-The first working version successfully builds a local cache for a single test player using:
+The current version is a working cache-first proof of concept. It successfully builds a local playoff cache using:
 
 * `hoopR::nba_playergamelogs()` for player game logs
 * `hoopR::nba_playbyplayv3()` for game-level play-by-play
 * Cached `.rds` files for app loading
-* Starter public-data proxy rules for Shot Quality and Possession Quality
+* Starter public-data proxy rules for Attempt Quality, shot-making, and Possession Quality
 
 During testing, `hoopR::nba_playergamelog()` returned empty lists for tested player IDs, so the current backend uses `hoopR::nba_playergamelogs()` with `player_id` passed explicitly.
+
+The app has been tested with a validated 27-player archetype sample from the 2024-25 playoffs. The sample includes primary creators, scoring wings, guards, bigs, rim finishers, role players, and lower-usage connectors. This test confirmed that the current shot score behaves mostly as an attempt-quality / shot-diet measure, not a full shot-creation model.
 
 The current app includes:
 
 * Home / overview page
 * Methodology page
 * Player search page
-* Game-by-game shot quality chart
+* Game-by-game Attempt Quality chart
 * Shot bucket distribution chart
 * Player game log table
 * Basic leaderboards
@@ -187,9 +189,9 @@ The starter model assigns shot attempts into transparent buckets:
 * `5` = neutral looks
 * `3` = difficult looks
 * `1` = very poor attempts
-* `Prayer` = end-clock heaves or bailout attempts tracked separately
+* `Grenade` = end-clock heaves or bailout attempts tracked separately
 
-Prayer shots are excluded from average Shot Quality so they do not overly punish the player.
+Grenade shots are excluded from average Shot Quality so they do not overly punish the player.
 
 ### Shot-Making Layer
 
@@ -249,33 +251,30 @@ The current weights are placeholders and should not be treated as final player-v
 * Shot result
 * Clock context
 * Basic shot bucket assignment
+* Grenade attempt detection
 
-### Estimated / Proxied Now
+### Automated Proxy Now
 
-* Shot Quality Score
-* Prayer shot detection
+* Attempt Quality Score
 * Late-clock shot adjustment
 * Shot-making versus placeholder expected value
 * Possession Quality Score
 * Possession-value event weights
+* Shot type classification from action type, sub type, and play description
 
-### Future Work
+### Future / Not Fully Captured Yet
 
-* Expand the cached player pool
-* Improve player lookup handling
-* Improve shot quality bucket rules after inspecting more play-by-play descriptions
-* Add league-average baselines by shot bucket
-* Center average shot process around roughly 0
-* Separate shot quality and shot-making more rigorously
-* Add potential assists if available through tracking data
-* Add deflections if available through hustle/tracking data
-* Add charges drawn if available through hustle/tracking data or manual tagging
-* Add player archetype and position filters
-* Improve game-level visualizations
-* Add game-level bucket distribution by player
-* Add a small sample cache or mock data option for easier demo use
-* Improve deployment workflow
-* Build a methodology page with more detailed formulas and assumptions
+* League-average calibration by shot bucket
+* Average process centered around roughly 0
+* Creation burden
+* Potential assists
+* Deflections
+* Charges drawn
+* Contest quality
+* Defensive matchup difficulty
+* Manual film tags
+* Full possession-level expected value
+
 
 ## Model Philosophy
 
@@ -309,11 +308,11 @@ This project is being built in stages.
 Current milestone:
 
 ```text
-Working cache-first Shiny scaffold with one tested player example.
+Working cache-first Shiny scaffold with a validated 27-player playoff archetype sample.
 ```
 
 Next milestone:
 
 ```text
-Expand from one tested player to a small validated player pool, then improve player search, leaderboard reliability, and game-level visualizations.
+Add shot-profile context fields such as rim rate, three-point attempt rate, average shot distance, grenade rate, and bucket distribution so leaderboards are easier to interpret.
 ```
