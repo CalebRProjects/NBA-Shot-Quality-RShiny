@@ -37,6 +37,9 @@ cache <- load_app_cache()
 
 ui <- navbarPage(
   title = APP_TITLE,
+  header = tags$head(
+    includeCSS("www/styles.css")
+  ),
 
   tabPanel(
     "Home",
@@ -156,25 +159,82 @@ ui <- navbarPage(
       mainPanel(
         h3(textOutput("player_title")),
         fluidRow(
-          column(3, strong("Games"), br(), textOutput("player_games")),
-          column(3, strong("FGA"), br(), textOutput("player_fga")),
-          column(3, strong("Attempt Quality"), br(), textOutput("player_avg_sq")),
-          column(3, strong("Possession Quality"), br(), textOutput("player_avg_pq"))
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Games"),
+              tags$div(class = "metric-value", textOutput("player_games"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "FGA"),
+              tags$div(class = "metric-value", textOutput("player_fga"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Attempt Quality"),
+              tags$div(class = "metric-value", textOutput("player_avg_sq"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Possession Quality"),
+              tags$div(class = "metric-value", textOutput("player_avg_pq"))
+            )
+          )
         ),
-        br(),
         fluidRow(
-          column(3, strong("Rim ≤5 ft Rate"), br(), textOutput("player_rim_rate")),
-          column(3, strong("3PA Rate"), br(), textOutput("player_three_rate")),
-          column(3, strong("Avg Shot Distance"), br(), textOutput("player_avg_dist")),
-          column(3, strong("Grenade Rate"), br(), textOutput("player_grenade_rate"))
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Rim ≤5 ft Rate"),
+              tags$div(class = "metric-value", textOutput("player_rim_rate"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "3PA Rate"),
+              tags$div(class = "metric-value", textOutput("player_three_rate"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Avg Shot Distance"),
+              tags$div(class = "metric-value", textOutput("player_avg_dist"))
+            )
+          ),
+          column(
+            3,
+            tags$div(
+              class = "metric-card",
+              tags$div(class = "metric-label", "Grenade Rate"),
+              tags$div(class = "metric-value", textOutput("player_grenade_rate"))
+            )
+          )
         ),
         hr(),
-        h4("Attempt Quality by Game"),
         plotly::plotlyOutput("player_sq_plot"),
-        h4("Attempt Bucket Distribution"),
+        br(),
         plotly::plotlyOutput("player_bucket_plot"),
         h4("Game Log"),
-        p("Table color bars are scaled within the selected player's visible games."),
+        tags$div(
+          class = "model-note",
+          "Table color bars are scaled within the selected player's visible games."
+        ),
         DT::dataTableOutput("player_game_log")
       )
     )
@@ -198,9 +258,12 @@ ui <- navbarPage(
       ),
       mainPanel(
         h3("Leaderboard"),
-        p("Default leaderboard reflects the currently loaded cache."),
-        p("Attempt Quality reflects shot diet quality. It does not fully capture creation burden, contest quality, or defensive context."),
-        p("Color bars use fixed reference ranges: Attempt Quality 1–9, Shot Making -5 to +5, and Possession Quality 0–30."),
+        tags$div(
+          class = "model-note",
+          p("Default leaderboard reflects the currently loaded cache."),
+          p("Attempt Quality reflects shot diet quality. It does not fully capture creation burden, contest quality, or defensive context."),
+          p("Color bars use fixed reference ranges: Attempt Quality 1–9, Shot Making -5 to +5, and Possession Quality 0–30.")
+        ),
         DT::dataTableOutput("leaderboard_table")
       )
     )
@@ -353,13 +416,14 @@ server <- function(input, output, session) {
       labs(
         x = NULL,
         y = "Attempt Quality",
-        title = glue::glue("{df$player_name[1]}: Attempt Quality by Game"),
-        subtitle = "1–9 public-data proxy scale; grenade attempts excluded from average"
-      ) +
-      theme_minimal(base_size = 13) +
+        title = "Attempt Quality by Game",
+        subtitle = glue::glue("{df$player_name[1]} | Grenades excluded from average")
+      ) + 
+      theme_minimal(base_size = 12) +
       theme(
-        plot.title = element_text(face = "bold"),
-        axis.text.x = element_text(size = 9),
+        plot.title = element_text(face = "bold", size = 13),
+        plot.subtitle = element_text(size = 10, color = "#66615a"),
+        axis.text.x = element_text(size = 8),
         panel.grid.minor = element_blank()
       )
     
@@ -377,17 +441,19 @@ server <- function(input, output, session) {
       )
     
     p <- ggplot(df, aes(x = sq_bucket, y = attempts, fill = sq_bucket)) +
-      geom_col(alpha = 0.85, show.legend = FALSE) +
+      geom_col(alpha = 0.75, show.legend = FALSE) +
       labs(
         x = "Attempt Quality Bucket",
         y = "Attempts",
         title = "Attempt Bucket Distribution",
-        subtitle = glue::glue("Filtered to selected player and last {input$last_n} games")
+        subtitle = glue::glue("{selected_games()$player_name[1]} | Last {input$last_n} games")
       ) +
-      theme_minimal(base_size = 13) +
+      theme_minimal(base_size = 12) +
       theme(
-        plot.title = element_text(face = "bold"),
-        panel.grid.minor = element_blank()
+        plot.title = element_text(face = "bold", size = 13),
+        plot.subtitle = element_text(size = 10, color = "#66615a"),
+        panel.grid.minor = element_blank(),
+        legend.position = "none"
       )
     
     plotly::ggplotly(p)
