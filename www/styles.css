@@ -132,8 +132,7 @@ input[type="number"] {
 /* Plot containers ---------------------------------------------------------- */
 
 .plotly {
-  background: #ffffff;
-  border: 1px solid #ded9cf;
-  border-radius: 2px;
-  padding: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
