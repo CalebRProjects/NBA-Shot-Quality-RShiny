@@ -67,21 +67,74 @@ ui <- navbarPage(
     fluidPage(
       br(),
       h2("Methodology / Definitions"),
-      h3("Attempt Quality Score"),
-      p("Attempt Quality Score measures the quality of the shots in a player's shot diet. It is not the same as shot-making, and it does not fully capture how difficult those shots were to create."),
-      tags$ul(
-        tags$li(strong("9:"), " highest-value attempts such as rim attempts, dunks, layups, and some very strong late-clock looks."),
-        tags$li(strong("7:"), " strong-quality looks."),
-        tags$li(strong("5:"), " neutral looks."),
-        tags$li(strong("3:"), " difficult looks."),
-        tags$li(strong("1:"), " very poor attempts."),
-        tags$li(strong("Grenade:"), " late-clock bailout or heave attempts tracked separately so they do not overly punish attempt quality.")
+      
+      tags$div(
+        class = "alert alert-info",
+        strong("Current model status: "),
+        "This is a public-data proxy model. It uses NBA.com game logs and play-by-play data through hoopR. It does not fully capture contest quality, creation burden, defensive context, or film-based possession details yet."
       ),
-      h3("Shot Making Layer"),
-      p("Shot making is separated from attempt quality. The starter version uses simple placeholder expected values by bucket. A future version should replace these with league-average baselines."),
+      
+      h3("Attempt Quality Score"),
+      p(
+        "Attempt Quality Score measures the quality of the shots in a player's shot diet. ",
+        "It is not the same as shot-making, and it does not fully capture how difficult those shots were to create."
+      ),
+      p(
+        "This means play-finishing bigs or rim-heavy players may score highly because they take a large share of high-value attempts. ",
+        "Primary creators may score lower because their role often requires pull-ups, late-clock shots, and self-created jumpers."
+      ),
+      
+      h4("Current attempt buckets"),
+      tags$ul(
+        tags$li(strong("9:"), " Highest-quality attempts, such as dunks, layups, and very strong rim attempts."),
+        tags$li(strong("7:"), " Strong-quality looks."),
+        tags$li(strong("5:"), " Neutral looks."),
+        tags$li(strong("3:"), " Difficult looks."),
+        tags$li(strong("1:"), " Very poor attempts."),
+        tags$li(strong("Grenade:"), " Late-clock bailout or heave attempts tracked separately so they do not overly punish attempt quality.")
+      ),
+      
+      h3("Shot-Making Layer"),
+      p(
+        "Shot making is separated from attempt quality. The current version compares actual points to placeholder expected values by attempt bucket. ",
+        "A future version should replace these placeholders with league-average points per shot by bucket."
+      ),
+      tags$pre(
+        "Shot Making = Actual Points - Expected Points by Attempt Bucket"
+      ),
+      
       h3("Possession Quality Score"),
-      p("Possession Quality Score extends beyond shot attempts by adding available box-score events such as assists, turnovers, steals, blocks, offensive rebounds, fouls, and fouls drawn where available."),
-      h3("Automation status"),
+      p(
+        "Possession Quality Score is a broader placeholder value score that combines available box-score events, attempt quality, and shot-making. ",
+        "The current weights are not final and should be treated as transparent working assumptions."
+      ),
+      
+      h4("Current included events"),
+      tags$ul(
+        tags$li("Assists"),
+        tags$li("Turnovers"),
+        tags$li("Steals"),
+        tags$li("Blocks"),
+        tags$li("Offensive rebounds"),
+        tags$li("Personal fouls"),
+        tags$li("Personal fouls drawn"),
+        tags$li("Attempt quality process component"),
+        tags$li("Shot-making component")
+      ),
+      
+      h3("Shot Profile Context"),
+      p(
+        "The app also reports shot-profile fields that help explain Attempt Quality. ",
+        "These are calculated from play-by-play shot events and should be interpreted as public-data proxies."
+      ),
+      tags$ul(
+        tags$li(strong("Rim ≤5 ft Rate:"), " share of attempts with shot_distance less than or equal to 5 feet."),
+        tags$li(strong("3PA Rate:"), " share of attempts where shot_value equals 3."),
+        tags$li(strong("Average Shot Distance:"), " average play-by-play shot_distance."),
+        tags$li(strong("Grenade Rate:"), " share of attempts classified as grenade attempts.")
+      ),
+      
+      h3("Automation Status"),
       DT::dataTableOutput("methodology_fields")
     )
   ),
@@ -104,9 +157,16 @@ ui <- navbarPage(
         h3(textOutput("player_title")),
         fluidRow(
           column(3, strong("Games"), br(), textOutput("player_games")),
+          column(3, strong("FGA"), br(), textOutput("player_fga")),
           column(3, strong("Attempt Quality"), br(), textOutput("player_avg_sq")),
-          column(3, strong("Possession Quality"), br(), textOutput("player_avg_pq")),
-          column(3, strong("FGA"), br(), textOutput("player_fga"))
+          column(3, strong("Possession Quality"), br(), textOutput("player_avg_pq"))
+        ),
+        br(),
+        fluidRow(
+          column(3, strong("Rim ≤5 ft Rate"), br(), textOutput("player_rim_rate")),
+          column(3, strong("3PA Rate"), br(), textOutput("player_three_rate")),
+          column(3, strong("Avg Shot Distance"), br(), textOutput("player_avg_dist")),
+          column(3, strong("Grenade Rate"), br(), textOutput("player_grenade_rate"))
         ),
         hr(),
         h4("Attempt Quality by Game"),
@@ -114,6 +174,7 @@ ui <- navbarPage(
         h4("Attempt Bucket Distribution"),
         plotly::plotlyOutput("player_bucket_plot"),
         h4("Game Log"),
+        p("Table color bars are scaled within the selected player's visible games."),
         DT::dataTableOutput("player_game_log")
       )
     )
@@ -188,6 +249,19 @@ server <- function(input, output, session) {
     df
   })
   
+  selected_player_summary <- reactive({
+    req(selected_player_id())
+    
+    df <- cache$player_summary |>
+      filter(.data$player_id == selected_player_id())
+    
+    validate(
+      need(nrow(df) > 0, "No player summary found for this player.")
+    )
+    
+    df
+  })
+  
   selected_game_ids <- reactive({
     selected_games() |>
       pull(game_id) |>
@@ -230,12 +304,33 @@ server <- function(input, output, session) {
   output$player_fga <- renderText({
     sum(selected_games()$fga, na.rm = TRUE)
   })
+  
+  output$player_rim_rate <- renderText({
+    scales::percent(selected_player_summary()$rim_rate, accuracy = 0.1)
+  })
+  
+  output$player_three_rate <- renderText({
+    scales::percent(selected_player_summary()$three_rate, accuracy = 0.1)
+  })
+  
+  output$player_avg_dist <- renderText({
+    paste0(
+      scales::number(selected_player_summary()$avg_shot_distance, accuracy = 0.1),
+      " ft"
+    )
+  })
+  
+  output$player_grenade_rate <- renderText({
+    scales::percent(selected_player_summary()$grenade_rate, accuracy = 0.1)
+  })
 
   output$player_sq_plot <- plotly::renderPlotly({
     df <- selected_games() |>
       mutate(
-        game_label = glue::glue(
-          "{matchup}<br>{game_date}<br>Attempt Quality: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>Possession Quality: {round(pq_score, 2)}"
+        game_label_axis = glue::glue("{format(game_date, '%b %d')}<br>{matchup}"),
+        game_label_axis = factor(game_label_axis, levels = game_label_axis),
+        hover_label = glue::glue(
+          "{matchup}<br>{game_date}<br>Attempt Quality: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>Shot Making: {round(shot_making_score, 2)}<br>Possession Quality: {round(pq_score, 2)}"
         )
       )
     
@@ -243,17 +338,17 @@ server <- function(input, output, session) {
       need(nrow(df) > 0, "No games available for this player.")
     )
     
-    p <- ggplot(df, aes(x = game_date, y = avg_sq_score, text = game_label)) +
+    p <- ggplot(df, aes(x = game_label_axis, y = avg_sq_score, text = hover_label)) +
+      geom_col(alpha = 0.75) +
       geom_hline(
         yintercept = 5,
         linetype = "dashed",
         linewidth = 0.4,
-        alpha = 0.6
+        alpha = 0.7
       ) +
-      geom_point(size = 3) +
       scale_y_continuous(
-        limits = c(1, 9),
-        breaks = seq(1, 9, by = 1)
+        limits = c(0, 9),
+        breaks = seq(0, 9, by = 1)
       ) +
       labs(
         x = NULL,
@@ -264,6 +359,7 @@ server <- function(input, output, session) {
       theme_minimal(base_size = 13) +
       theme(
         plot.title = element_text(face = "bold"),
+        axis.text.x = element_text(size = 9),
         panel.grid.minor = element_blank()
       )
     
@@ -280,8 +376,8 @@ server <- function(input, output, session) {
         )
       )
     
-    p <- ggplot(df, aes(x = sq_bucket, y = attempts)) +
-      geom_col() +
+    p <- ggplot(df, aes(x = sq_bucket, y = attempts, fill = sq_bucket)) +
+      geom_col(alpha = 0.85, show.legend = FALSE) +
       labs(
         x = "Attempt Quality Bucket",
         y = "Attempts",
@@ -417,6 +513,10 @@ server <- function(input, output, session) {
       )
   })
 
+  output$pipeline_status <- renderPrint({
+    cache_status(cache)
+  })
+  
   output$missing_fields_table <- DT::renderDataTable({
     missing_or_estimated_fields()
   }, options = list(pageLength = 20))

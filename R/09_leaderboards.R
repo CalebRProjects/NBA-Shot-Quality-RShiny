@@ -39,22 +39,32 @@ build_leaderboard <- function(player_summary, metric, min_games = 1, min_fga = 0
 methodology_field_table <- function() {
   tibble::tribble(
     ~Field, ~Current_Status, ~Notes,
+    
     "Shot attempts", "Automated", "Pulled from NBA.com play-by-play shot events.",
-    "Shot value", "Automated", "Uses PBP shot_value when available.",
-    "Shot distance", "Automated", "Uses PBP shot_distance when available.",
-    "Shot type/action", "Automated/proxy", "Uses action_type, sub_type, and description text.",
-    "Clock context", "Automated/proxy", "Used for late-clock bump and prayer detection.",
-    "Contest quality", "Future/manual", "Not fully captured by public PBP.",
-    "Defensive matchup/context", "Future/manual", "Could use matchup or tracking endpoints later.",
+    "Shot value", "Automated", "Uses play-by-play shot_value when available.",
+    "Shot distance", "Automated", "Uses play-by-play shot_distance when available.",
+    "Shot type/action", "Automated proxy", "Uses action_type, sub_type, and description text.",
+    "Clock context", "Automated proxy", "Used for late-clock adjustment and grenade detection.",
+    "Grenade attempts", "Automated proxy", "Late-clock bailout or heave attempts tracked separately.",
+    
+    "Rim ≤5 ft rate", "Automated proxy", "Share of play-by-play shot attempts with shot_distance <= 5.",
+    "3PA rate", "Automated", "Share of play-by-play shot attempts where shot_value == 3.",
+    "Average shot distance", "Automated", "Average play-by-play shot_distance.",
+    
     "Assists", "Automated", "From player game logs.",
-    "Potential assists", "Future/proxy", "Add tracking endpoint later; calibrate by AST / potential AST conversion.",
     "Turnovers", "Automated", "From player game logs.",
     "Steals", "Automated", "From player game logs.",
     "Blocks", "Automated", "From player game logs.",
     "Offensive rebounds", "Automated", "From player game logs.",
-    "Deflections", "Future/proxy", "Add hustle/tracking endpoint later; should be partial turnover-creation value.",
-    "Charges drawn", "Future/manual or endpoint", "Use if available through hustle data, otherwise film/manual.",
-    "Fouls drawn", "Future/proxy", "Can estimate from FTA/play descriptions, but should be labeled carefully."
+    "Personal fouls", "Automated", "From player game logs.",
+    "Fouls drawn", "Automated", "From player game logs using pfd.",
+    
+    "Potential assists", "Future", "Add tracking endpoint later; calibrate by AST / potential AST conversion.",
+    "Deflections", "Future", "Add hustle/tracking endpoint later; should be partial turnover-creation value.",
+    "Charges drawn", "Future", "Use if available through hustle data, otherwise film/manual.",
+    "Contest quality", "Future/manual", "Not fully captured by public play-by-play.",
+    "Defensive matchup/context", "Future/manual", "Could use matchup, tracking, or film tags later.",
+    "Creation burden", "Future/proxy", "Needed to separate self-created difficulty from attempt quality."
   )
 }
 

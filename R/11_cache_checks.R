@@ -71,3 +71,69 @@ summarize_cache <- function(cache = load_app_cache()) {
       dplyr::count(player_name, sort = TRUE)
   )
 }
+
+audit_shot_profile_accuracy <- function(cache = load_app_cache()) {
+  
+  player_ids <- cache$player_lookup$player_id
+  
+  box_totals <- cache$game_logs |>
+    dplyr::filter(.data$player_id %in% player_ids) |>
+    dplyr::group_by(player_id, player_name) |>
+    dplyr::summarise(
+      box_games = dplyr::n_distinct(game_id),
+      box_fga = sum(fga, na.rm = TRUE),
+      box_3pa = sum(fg3a, na.rm = TRUE),
+      box_pts = sum(pts, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::rename(full_player_name = player_name)
+  
+  pbp_totals <- cache$shot_events |>
+    dplyr::filter(.data$player_id %in% player_ids) |>
+    dplyr::group_by(player_id) |>
+    dplyr::summarise(
+      pbp_name = dplyr::first(player_name),
+      pbp_fga = dplyr::n(),
+      pbp_3pa = sum(shot_value == 3, na.rm = TRUE),
+      pbp_rim_5ft_attempts = sum(shot_distance <= 5, na.rm = TRUE),
+      pbp_avg_shot_distance = mean(shot_distance, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  box_totals |>
+    dplyr::left_join(
+      pbp_totals,
+      by = "player_id"
+    ) |>
+    dplyr::mutate(
+      fga_diff = pbp_fga - box_fga,
+      three_pa_diff = pbp_3pa - box_3pa,
+      
+      box_three_rate = box_3pa / box_fga,
+      pbp_three_rate = pbp_3pa / pbp_fga,
+      three_rate_diff = pbp_three_rate - box_three_rate,
+      
+      pbp_rim_5ft_rate = pbp_rim_5ft_attempts / pbp_fga
+    ) |>
+    dplyr::select(
+      player_id,
+      player_name = full_player_name,
+      pbp_name,
+      box_games,
+      box_fga,
+      pbp_fga,
+      fga_diff,
+      box_3pa,
+      pbp_3pa,
+      three_pa_diff,
+      box_three_rate,
+      pbp_three_rate,
+      three_rate_diff,
+      pbp_rim_5ft_rate,
+      pbp_avg_shot_distance
+    ) |>
+    dplyr::arrange(
+      dplyr::desc(abs(fga_diff)),
+      dplyr::desc(abs(three_pa_diff))
+    )
+}
