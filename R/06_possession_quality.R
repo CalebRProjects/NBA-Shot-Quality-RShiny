@@ -42,9 +42,9 @@ build_shot_game_summary <- function(scored_shots) {
     group_by(player_id, player_name, game_id) |>
     summarise(
       fga_from_pbp = n(),
-      non_prayer_fga = sum(!is_prayer, na.rm = TRUE),
-      prayer_attempts = sum(is_prayer, na.rm = TRUE),
-      avg_sq_score = mean(sq_score[!is_prayer], na.rm = TRUE),
+      non_grenade_fga = sum(!is_grenade, na.rm = TRUE),
+      grenade_attempts = sum(is_grenade, na.rm = TRUE),
+      avg_sq_score = mean(sq_score[!is_grenade], na.rm = TRUE),
       shot_making_score = sum(shot_making_score, na.rm = TRUE),
       .groups = "drop"
     )

@@ -25,7 +25,7 @@ SQ_EXPECTED_POINTS <- c(
   "5" = 1.00,
   "3" = 0.80,
   "1" = 0.55,
-  "Prayer" = 0.20
+  "Grenade" = 0.20
 )
 
 # Placeholder possession quality weights.

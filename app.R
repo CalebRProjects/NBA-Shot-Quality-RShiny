@@ -1,12 +1,25 @@
-# NBA Shot Quality + Possession Quality Shiny App
-# Step 1: stable backend + simple app shell
+# NBA Attempt Quality + Possession Quality Shiny App
+# Cache-first Shiny app using NBA.com data through hoopR.
 #
 # Run:
 #   shiny::runApp()
 #
-# First build cache:
+# Build cache first:
 #   source("R/07_cache_builder.R")
-#   build_sq_cache(player_ids = c("203999", "1629029"), season = "2024-25", season_type = "Playoffs")
+#   source("R/10_test_players.R")
+#   build_sq_cache(
+#     player_ids = test_players_default,
+#     season = "2024-25",
+#     season_type = "Playoffs",
+#     force_refresh = TRUE
+#   )
+
+required_pkgs <- c(
+  "shiny", "tidyverse", "janitor", "lubridate", "stringr",
+  "readr", "scales", "glue", "DT", "plotly"
+)
+
+invisible(lapply(required_pkgs, require, character.only = TRUE))
 
 source("R/00_config.R")
 source("R/01_helpers.R")
@@ -17,14 +30,8 @@ source("R/05_shot_quality_rules.R")
 source("R/06_possession_quality.R")
 source("R/08_player_summaries.R")
 source("R/09_leaderboards.R")
+source("R/12_shot_profile.R")
 source("R/07_cache_builder.R")
-
-required_pkgs <- c(
-  "shiny", "tidyverse", "janitor", "lubridate", "stringr",
-  "readr", "scales", "glue", "DT", "plotly"
-)
-
-invisible(lapply(required_pkgs, require, character.only = TRUE))
 
 cache <- load_app_cache()
 
@@ -35,8 +42,8 @@ ui <- navbarPage(
     "Home",
     fluidPage(
       br(),
-      h2("NBA Shot Quality + Overall Possession Quality"),
-      p("A public-data proxy model for evaluating player shot process, shot-making, and broader possession value."),
+      h2("NBA Attempt Quality + Overall Possession Quality"),
+      p("A public-data proxy model for evaluating player shot diet, shot-making, and broader possession value."),
       tags$div(
         class = "alert alert-warning",
         strong("Important: "),
@@ -46,8 +53,8 @@ ui <- navbarPage(
       tags$ol(
         tags$li("NBA.com data via hoopR"),
         tags$li("Player game logs and play-by-play shot events"),
-        tags$li("Shot quality bucket rules"),
-        tags$li("Game-level shot quality and possession quality summaries"),
+        tags$li("Attempt quality bucket rules"),
+        tags$li("Game-level attempt quality and possession quality summaries"),
         tags$li("Player search and leaderboards")
       ),
       h4("Cache status"),
@@ -60,18 +67,18 @@ ui <- navbarPage(
     fluidPage(
       br(),
       h2("Methodology / Definitions"),
-      h3("Shot Quality Score"),
-      p("Shot Quality Score is a process score for the shots a player takes. It is not the same as shot-making."),
+      h3("Attempt Quality Score"),
+      p("Attempt Quality Score measures the quality of the shots in a player's shot diet. It is not the same as shot-making, and it does not fully capture how difficult those shots were to create."),
       tags$ul(
         tags$li(strong("9:"), " highest-value attempts such as rim attempts, dunks, layups, and some very strong late-clock looks."),
         tags$li(strong("7:"), " strong-quality looks."),
         tags$li(strong("5:"), " neutral looks."),
         tags$li(strong("3:"), " difficult looks."),
         tags$li(strong("1:"), " very poor attempts."),
-        tags$li(strong("Prayer:"), " end-clock heaves or bailout attempts tracked separately.")
+        tags$li(strong("Grenade:"), " late-clock bailout or heave attempts tracked separately so they do not overly punish attempt quality.")
       ),
       h3("Shot Making Layer"),
-      p("Shot making is separated from shot quality. The starter version uses simple placeholder expected values by bucket. A future version should replace these with league-average baselines."),
+      p("Shot making is separated from attempt quality. The starter version uses simple placeholder expected values by bucket. A future version should replace these with league-average baselines."),
       h3("Possession Quality Score"),
       p("Possession Quality Score extends beyond shot attempts by adding available box-score events such as assists, turnovers, steals, blocks, offensive rebounds, fouls, and fouls drawn where available."),
       h3("Automation status"),
@@ -97,14 +104,14 @@ ui <- navbarPage(
         h3(textOutput("player_title")),
         fluidRow(
           column(3, strong("Games"), br(), textOutput("player_games")),
-          column(3, strong("Avg SQ"), br(), textOutput("player_avg_sq")),
-          column(3, strong("Avg PQ"), br(), textOutput("player_avg_pq")),
+          column(3, strong("Attempt Quality"), br(), textOutput("player_avg_sq")),
+          column(3, strong("Possession Quality"), br(), textOutput("player_avg_pq")),
           column(3, strong("FGA"), br(), textOutput("player_fga"))
         ),
         hr(),
-        h4("Shot Quality Over Time"),
+        h4("Attempt Quality by Game"),
         plotly::plotlyOutput("player_sq_plot"),
-        h4("Shot Bucket Distribution"),
+        h4("Attempt Bucket Distribution"),
         plotly::plotlyOutput("player_bucket_plot"),
         h4("Game Log"),
         DT::dataTableOutput("player_game_log")
@@ -122,7 +129,7 @@ ui <- navbarPage(
           "leaderboard_metric",
           "Metric",
           choices = c(
-            "Shot Quality Score" = "avg_sq_score",
+            "Attempt Quality Score" = "avg_sq_score",
             "Possession Quality Score" = "avg_pq_score",
             "Shot Making Score" = "avg_shot_making_score"
           )
@@ -131,6 +138,8 @@ ui <- navbarPage(
       mainPanel(
         h3("Leaderboard"),
         p("Default leaderboard reflects the currently loaded cache."),
+        p("Attempt Quality reflects shot diet quality. It does not fully capture creation burden, contest quality, or defensive context."),
+        p("Color bars use fixed reference ranges: Attempt Quality 1–9, Shot Making -5 to +5, and Possession Quality 0–30."),
         DT::dataTableOutput("leaderboard_table")
       )
     )
@@ -226,7 +235,7 @@ server <- function(input, output, session) {
     df <- selected_games() |>
       mutate(
         game_label = glue::glue(
-          "{matchup}<br>{game_date}<br>Avg SQ: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>PQ: {round(pq_score, 2)}"
+          "{matchup}<br>{game_date}<br>Attempt Quality: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>Possession Quality: {round(pq_score, 2)}"
         )
       )
     
@@ -248,9 +257,9 @@ server <- function(input, output, session) {
       ) +
       labs(
         x = NULL,
-        y = "Average Shot Quality",
-        title = glue::glue("{df$player_name[1]}: Shot Quality by Game"),
-        subtitle = "1–9 public-data proxy scale; prayer shots excluded from average"
+        y = "Attempt Quality",
+        title = glue::glue("{df$player_name[1]}: Attempt Quality by Game"),
+        subtitle = "1–9 public-data proxy scale; grenade attempts excluded from average"
       ) +
       theme_minimal(base_size = 13) +
       theme(
@@ -267,16 +276,16 @@ server <- function(input, output, session) {
       mutate(
         sq_bucket = factor(
           sq_bucket,
-          levels = c("9", "7", "5", "3", "1", "Prayer")
+          levels = c("9", "7", "5", "3", "1", "Grenade")
         )
       )
     
     p <- ggplot(df, aes(x = sq_bucket, y = attempts)) +
       geom_col() +
       labs(
-        x = "Shot Quality Bucket",
+        x = "Attempt Quality Bucket",
         y = "Attempts",
-        title = "Shot Bucket Distribution",
+        title = "Attempt Bucket Distribution",
         subtitle = glue::glue("Filtered to selected player and last {input$last_n} games")
       ) +
       theme_minimal(base_size = 13) +
@@ -289,37 +298,129 @@ server <- function(input, output, session) {
   })
 
   output$player_game_log <- DT::renderDataTable({
-    selected_games() |>
+    game_log_df <- selected_games() |>
       select(
-        game_date, matchup, wl, min, fga, pts, ast, tov, stl, blk, oreb, pfd,
-        avg_sq_score, shot_making_score, pq_score
+        Date = game_date,
+        Matchup = matchup,
+        Result = wl,
+        MIN = min,
+        FGA = fga,
+        PTS = pts,
+        AST = ast,
+        TOV = tov,
+        STL = stl,
+        BLK = blk,
+        OREB = oreb,
+        `Fouls Drawn` = pfd,
+        `Non-Grenade FGA` = non_grenade_fga,
+        Grenades = grenade_attempts,
+        `Attempt Quality` = avg_sq_score,
+        `Shot Making` = shot_making_score,
+        `Possession Quality` = pq_score
       ) |>
-      arrange(desc(game_date))
-  }, options = list(pageLength = 10, scrollX = TRUE))
+      mutate(
+        MIN = round(MIN, 1),
+        `Attempt Quality` = round(`Attempt Quality`, 2),
+        `Shot Making` = round(`Shot Making`, 2),
+        `Possession Quality` = round(`Possession Quality`, 2)
+      ) |>
+      arrange(desc(Date))
+    
+    DT::datatable(
+      game_log_df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = "tip"
+      )
+    ) |>
+      DT::formatStyle(
+        "Attempt Quality",
+        background = DT::styleColorBar(
+          range(game_log_df$`Attempt Quality`, na.rm = TRUE),
+          "lightblue"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      ) |>
+      DT::formatStyle(
+        "Shot Making",
+        background = DT::styleColorBar(
+          range(game_log_df$`Shot Making`, na.rm = TRUE),
+          "lightgreen"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      ) |>
+      DT::formatStyle(
+        "Possession Quality",
+        background = DT::styleColorBar(
+          range(game_log_df$`Possession Quality`, na.rm = TRUE),
+          "khaki"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      )
+  })
 
   output$leaderboard_table <- DT::renderDataTable({
-    build_leaderboard(
+    leaderboard_df <- build_leaderboard(
       player_summary = cache$player_summary,
       metric = input$leaderboard_metric,
       min_games = input$min_games,
       min_fga = input$min_fga,
       n = 10
     )
-  }, options = list(pageLength = 10, scrollX = TRUE))
-
-  output$pipeline_status <- renderPrint({
-    cache_status(cache)
+    
+    DT::datatable(
+      leaderboard_df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        scrollX = TRUE,
+        dom = "tip"
+      )
+    ) |>
+      DT::formatStyle(
+        "Attempt Quality",
+        background = DT::styleColorBar(
+          c(1, 9),
+          "lightblue"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      ) |>
+      DT::formatStyle(
+        "Shot Making",
+        background = DT::styleColorBar(
+          c(-5, 5),
+          "lightgreen"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      ) |>
+      DT::formatStyle(
+        "Possession Quality",
+        background = DT::styleColorBar(
+          c(0, 30),
+          "khaki"
+        ),
+        backgroundSize = "98% 70%",
+        backgroundRepeat = "no-repeat",
+        backgroundPosition = "center"
+      )
   })
 
   output$missing_fields_table <- DT::renderDataTable({
     missing_or_estimated_fields()
   }, options = list(pageLength = 20))
   
-  observe({
-    message(glue::glue(
-      "Selected player_id={input$player_id}; last_n={input$last_n}"
-    ))
-  })
 }
 
 shinyApp(ui, server)

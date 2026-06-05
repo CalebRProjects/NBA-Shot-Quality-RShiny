@@ -2,17 +2,37 @@
 
 build_leaderboard <- function(player_summary, metric, min_games = 1, min_fga = 0, n = 10) {
   if (nrow(player_summary) == 0) return(tibble::tibble())
-
-  metric <- rlang::sym(metric)
-
+  
+  metric_sym <- rlang::sym(metric)
+  
   player_summary |>
     filter(games >= min_games, fga >= min_fga) |>
-    arrange(desc(!!metric)) |>
+    arrange(desc(!!metric_sym)) |>
     slice_head(n = n) |>
-    mutate(rank = row_number()) |>
+    mutate(
+      Rank = row_number(),
+      `Attempt Quality` = round(avg_sq_score, 2),
+      `Shot Making` = round(avg_shot_making_score, 2),
+      `Possession Quality` = round(avg_pq_score, 2),
+      `Total PQ` = round(total_pq_score, 1),
+      `Avg Shot Distance` = round(avg_shot_distance, 1),
+      `Rim%` = scales::percent(rim_rate, accuracy = 0.1),
+      `3PA%` = scales::percent(three_rate, accuracy = 0.1),
+      `Grenade%` = scales::percent(grenade_rate, accuracy = 0.1)
+    ) |>
     select(
-      rank, player_name, games, fga,
-      avg_sq_score, avg_shot_making_score, avg_pq_score, total_pq_score
+      Rank,
+      Player = player_name,
+      Games = games,
+      FGA = fga,
+      `Attempt Quality`,
+      `Rim%`,
+      `3PA%`,
+      `Avg Shot Distance`,
+      `Grenade%`,
+      `Shot Making`,
+      `Possession Quality`,
+      `Total PQ`
     )
 }
 

@@ -24,6 +24,7 @@ source("R/05_shot_quality_rules.R")
 source("R/06_possession_quality.R")
 source("R/08_player_summaries.R")
 source("R/02_player_lookup.R")
+source("R/12_shot_profile.R")
 
 build_sq_cache <- function(
     player_ids,
@@ -56,7 +57,36 @@ build_sq_cache <- function(
 
   shot_game_summary <- build_shot_game_summary(scored_shots)
   game_summary <- calculate_possession_quality(game_logs, shot_game_summary)
+  
   player_summary <- build_player_summary(game_summary)
+  
+  shot_profile_summary <- build_shot_profile_summary(scored_shots)
+  
+  player_summary <- player_summary |>
+    dplyr::left_join(
+      shot_profile_summary |>
+        dplyr::select(
+          player_id,
+          fga_from_pbp,
+          non_grenade_fga,
+          grenade_attempts,
+          rim_attempts,
+          midrange_attempts,
+          three_attempts,
+          rim_rate,
+          midrange_rate,
+          three_rate,
+          grenade_rate,
+          avg_shot_distance,
+          bucket_9_rate,
+          bucket_7_rate,
+          bucket_5_rate,
+          bucket_3_rate,
+          bucket_1_rate
+        ),
+      by = "player_id"
+    )
+  
   player_lookup <- build_player_lookup_from_game_logs(game_logs)
 
   metadata <- list(

@@ -19,7 +19,7 @@ score_shot_quality <- function(shot_events) {
       expected_points = unname(SQ_EXPECTED_POINTS[as.character(sq_bucket)]),
       actual_points = if_else(shot_result == "Made", shot_value, 0),
       shot_making_score = actual_points - expected_points,
-      is_prayer = sq_bucket == "Prayer"
+      is_grenade = sq_bucket == "Grenade"
     )
 }
 
@@ -37,7 +37,7 @@ assign_sq_bucket <- function(
   sec <- suppressWarnings(as.numeric(seconds_remaining))
 
   bucket <- dplyr::case_when(
-    !is.na(sec) & sec <= 2 & dist >= 35 ~ "Prayer",
+    !is.na(sec) & sec <= 2 & dist >= 35 ~ "Grenade",
 
     stringr::str_detect(desc, "dunk|layup|finger roll|alley oop") & dist <= 5 ~ "9",
     dist <= 4 ~ "9",
@@ -53,9 +53,9 @@ assign_sq_bucket <- function(
     TRUE ~ "1"
   )
 
-  # Late-clock bump for non-prayer shots.
+  # Late-clock bump for non-grenade shots.
   # Logic: a difficult attempt late in the clock should be tracked as a lower-burden process event.
-  late_clock <- !is.na(sec) & sec <= 4 & bucket != "Prayer"
+  late_clock <- !is.na(sec) & sec <= 4 & bucket != "Grenade"
 
   bucket <- dplyr::case_when(
     late_clock & bucket == "1" ~ "3",
@@ -63,7 +63,7 @@ assign_sq_bucket <- function(
     TRUE ~ bucket
   )
 
-  factor(bucket, levels = c("9", "7", "5", "3", "1", "Prayer"))
+  factor(bucket, levels = c("9", "7", "5", "3", "1", "Grenade"))
 }
 
 bucket_to_score <- function(bucket) {
@@ -73,7 +73,7 @@ bucket_to_score <- function(bucket) {
     as.character(bucket) == "5" ~ 5,
     as.character(bucket) == "3" ~ 3,
     as.character(bucket) == "1" ~ 1,
-    as.character(bucket) == "Prayer" ~ NA_real_,
+    as.character(bucket) == "Grenade" ~ NA_real_,
     TRUE ~ NA_real_
   )
 }
