@@ -97,13 +97,65 @@ ui <- navbarPage(
         tags$li(strong("Grenade:"), " Late-clock bailout or heave attempts tracked separately so they do not overly punish attempt quality.")
       ),
       
+      h4("Attempt Quality formula"),
+      tags$pre(
+        "Attempt Quality = mean(bucket score for all non-grenade attempts)
+
+where:
+
+9 bucket = 9
+7 bucket = 7
+5 bucket = 5
+3 bucket = 3
+1 bucket = 1
+Grenade attempts = excluded from Attempt Quality average"
+      ),
+      
+      h4("Current bucket assignment logic"),
+      tags$pre(
+        "Current public-data proxy inputs:
+- shot_value
+- shot_distance
+- action_type
+- sub_type
+- description
+- seconds_remaining
+
+General rule structure:
+- Close rim attempts and dunk/layup language are pushed toward 9s.
+- Strong rim/paint actions and some high-value looks are pushed toward 7s.
+- Neutral attempts are pushed toward 5s.
+- Difficult attempts are pushed toward 3s or 1s.
+- Very late, very deep attempts are classified as Grenades.
+- Late-clock non-grenade attempts can be bumped up to avoid over-penalizing bailout shots."
+      ),
+      
       h3("Shot-Making Layer"),
       p(
         "Shot making is separated from attempt quality. The current version compares actual points to placeholder expected values by attempt bucket. ",
         "A future version should replace these placeholders with league-average points per shot by bucket."
       ),
+      
+      h4("Shot Making formula"),
       tags$pre(
-        "Shot Making = Actual Points - Expected Points by Attempt Bucket"
+        "Shot Making = Actual Points - Expected Points
+
+At the shot level:
+Actual Points = shot_value if made, otherwise 0
+Expected Points = placeholder expected value for the assigned attempt bucket
+
+At the game/player level:
+Shot Making = sum(Actual Points - Expected Points)"
+      ),
+      
+      h4("Current placeholder expected points"),
+      tags$pre(
+        "9 bucket = 1.35 expected points
+7 bucket = 1.15 expected points
+5 bucket = 1.00 expected points
+3 bucket = 0.80 expected points
+1 bucket = 0.55 expected points
+Grenade = 0.20 expected points"
       ),
       
       h3("Possession Quality Score"),
@@ -112,7 +164,68 @@ ui <- navbarPage(
         "The current weights are not final and should be treated as transparent working assumptions."
       ),
       
-      h4("Current included events"),
+      h4("Possession Quality formula"),
+      tags$pre(
+        "Possession Quality =
+  Box Score Component
+  + Shot Process Component
+  + Shot Making Component
+
+Box Score Component =
+  (AST * ast_weight)
+  + (TOV * tov_weight)
+  + (STL * stl_weight)
+  + (BLK * blk_weight)
+  + (OREB * oreb_weight)
+  + (PF * pf_weight)
+  + (PFD * fouls_drawn_weight)
+
+Shot Process Component =
+  Attempt Quality * FGA / 10
+
+Shot Making Component =
+  sum(Actual Points - Expected Points by Attempt Bucket)"
+      ),
+      
+      h4("Current placeholder possession weights"),
+      tags$pre(
+        "AST = +1.00
+TOV = -2.00
+STL = +1.25
+BLK = +1.00
+OREB = +1.10
+PF = -0.40
+PFD = +0.60
+
+Potential AST = +0.40 placeholder, not active unless available
+Deflections = +0.35 placeholder, not active unless available
+Charges Drawn = +1.25 placeholder, not active unless available"
+      ),
+      
+      h3("Shot Profile Context"),
+      p(
+        "The app also reports shot-profile fields that help explain Attempt Quality. ",
+        "These are calculated from play-by-play shot events and should be interpreted as public-data proxies."
+      ),
+      
+      h4("Shot profile formulas"),
+      tags$pre(
+        "Rim ≤5 ft Rate = attempts with shot_distance <= 5 / total FGA from play-by-play
+
+3PA Rate = attempts with shot_value == 3 / total FGA from play-by-play
+
+Midrange Rate =
+  two-point attempts with shot_distance > 5 and shot_distance < 23
+  / total FGA from play-by-play
+
+Average Shot Distance =
+  mean(shot_distance)
+
+Grenade Rate =
+  grenade attempts / total FGA from play-by-play"
+      ),
+      
+      h3("Current included possession events"),
       tags$ul(
         tags$li("Assists"),
         tags$li("Turnovers"),
@@ -123,18 +236,6 @@ ui <- navbarPage(
         tags$li("Personal fouls drawn"),
         tags$li("Attempt quality process component"),
         tags$li("Shot-making component")
-      ),
-      
-      h3("Shot Profile Context"),
-      p(
-        "The app also reports shot-profile fields that help explain Attempt Quality. ",
-        "These are calculated from play-by-play shot events and should be interpreted as public-data proxies."
-      ),
-      tags$ul(
-        tags$li(strong("Rim ≤5 ft Rate:"), " share of attempts with shot_distance less than or equal to 5 feet."),
-        tags$li(strong("3PA Rate:"), " share of attempts where shot_value equals 3."),
-        tags$li(strong("Average Shot Distance:"), " average play-by-play shot_distance."),
-        tags$li(strong("Grenade Rate:"), " share of attempts classified as grenade attempts.")
       ),
       
       h3("Automation Status"),
