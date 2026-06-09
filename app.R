@@ -32,6 +32,7 @@ source("R/08_player_summaries.R")
 source("R/09_leaderboards.R")
 source("R/12_shot_profile.R")
 source("R/07_cache_builder.R")
+source("R/13_cache_paths.R")
 
 cache <- load_app_cache()
 

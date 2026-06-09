@@ -137,3 +137,16 @@ audit_shot_profile_accuracy <- function(cache = load_app_cache()) {
       dplyr::desc(abs(three_pa_diff))
     )
 }
+
+check_cache_status <- function(cache = load_app_cache()) {
+  tibble::tibble(
+    object = names(cache),
+    class = purrr::map_chr(cache, ~ class(.x)[1]),
+    rows = purrr::map_int(cache, ~ {
+      if (is.data.frame(.x)) nrow(.x) else NA_integer_
+    }),
+    columns = purrr::map_int(cache, ~ {
+      if (is.data.frame(.x)) ncol(.x) else NA_integer_
+    })
+  )
+}

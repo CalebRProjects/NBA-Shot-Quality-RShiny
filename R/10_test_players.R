@@ -27,8 +27,8 @@ test_players_small_playoff_sample <- c(
 # stars, role players, and lower-usage players.
 #
 # Note: depending on endpoint availability and playoff participation, not every
-# requested player may return game-log data. During initial testing, this sample
-# produced a 27-player cache.
+# requested player may return game-log data. The cache builder is expected to
+# skip players without returned postseason data.
 
 test_players_30_archetype_sample <- c(
   # Primary creators / high-usage engines
@@ -70,6 +70,95 @@ test_players_30_archetype_sample <- c(
   "1628384", # OG Anunoby
   "1630178", # Tari Eason
   "201144"   # Mike Conley
+)
+
+# 50-player playoff sample -----------------------------------------------------
+# Purpose: larger playoff-only sample using players from 2024-25 playoff teams.
+# This gives the app a broader v1 leaderboard while avoiding obvious non-playoff
+# players who will return empty postseason game logs.
+
+test_players_50_playoff_sample <- c(
+  # Existing 30-player archetype sample
+  test_players_30_archetype_sample,
+  
+  # Thunder
+  "1629652", # Luguentz Dort
+  "1627936", # Alex Caruso
+  "1630198", # Isaiah Joe
+  "1641717", # Cason Wallace
+  
+  # Pacers
+  "1627783", # Pascal Siakam
+  "1626167", # Myles Turner
+  "1629614", # Andrew Nembhard
+  "1630174", # Aaron Nesmith
+  "1631097", # Bennedict Mathurin
+  
+  # Knicks
+  "1628404", # Josh Hart
+  "1628978", # Donte DiVincenzo
+  "1629011", # Mitchell Robinson
+  "1630540", # Miles McBride
+  
+  # Nuggets
+  "1627750", # Jamal Murray
+  "203932",  # Aaron Gordon
+  "1629008", # Michael Porter Jr.
+  
+  # Timberwolves
+  "1630183", # Jaden McDaniels
+  "1629675", # Naz Reid
+  "203944",  # Julius Randle
+  
+  # Celtics
+  "1628401", # Derrick White
+  "201950",  # Jrue Holiday
+  "204001",  # Kristaps Porzingis
+  "201143",  # Al Horford
+  "1630202", # Payton Pritchard
+  
+  # Cavaliers
+  "1628386", # Jarrett Allen
+  "1629622", # Max Strus
+  "1630205", # Isaac Okoro
+  
+  # Heat
+  "1628389", # Bam Adebayo
+  "1629639", # Tyler Herro
+  "1631170", # Jaime Jaquez Jr.
+  
+  # Magic
+  "1630532", # Franz Wagner
+  "1630591", # Jalen Suggs
+  "1628976", # Wendell Carter Jr.
+  "1630175", # Cole Anthony
+  
+  # Rockets
+  "1630224", # Jalen Green
+  "1627832", # Fred VanVleet
+  "1628415", # Dillon Brooks
+  "1641708", # Amen Thompson
+  
+  # Warriors
+  "202710",  # Jimmy Butler
+  "203110",  # Draymond Green
+  "1630228", # Jonathan Kuminga
+  "1641764", # Brandin Podziemski
+  "1627741", # Buddy Hield
+  
+  # Lakers
+  "1629060", # Rui Hachimura
+  "1627827", # Dorian Finney-Smith
+  "1629216"  # Gabe Vincent
+) |>
+  unique()
+
+test_players_regular_season_small <- c(
+  "1628983", # Shai Gilgeous-Alexander
+  "203999",  # Nikola Jokic
+  "201939",  # Stephen Curry
+  "1629029", # Luka Doncic
+  "1630162"  # Anthony Edwards
 )
 
 # Player archetype labels ------------------------------------------------------
@@ -117,4 +206,4 @@ test_player_archetypes <- tibble::tribble(
 # Current default test group ---------------------------------------------------
 # Change this object when you want the cache builder to use a different sample.
 
-test_players_default <- test_players_30_archetype_sample
+test_players_default <- test_players_50_playoff_sample
