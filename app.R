@@ -30,9 +30,12 @@ source("R/05_shot_quality_rules.R")
 source("R/06_possession_quality.R")
 source("R/08_player_summaries.R")
 source("R/09_leaderboards.R")
+source("R/10_test_players.R")
+source("R/11_cache_checks.R")
 source("R/12_shot_profile.R")
-source("R/07_cache_builder.R")
 source("R/13_cache_paths.R")
+source("R/07_cache_builder.R")
+
 
 cache <- load_app_cache()
 
