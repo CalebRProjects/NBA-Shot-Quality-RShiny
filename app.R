@@ -37,7 +37,10 @@ source("R/13_cache_paths.R")
 source("R/07_cache_builder.R")
 
 
-cache <- load_app_cache()
+default_cache <- load_app_cache(
+  season = DEFAULT_SEASON,
+  season_type = DEFAULT_SEASON_TYPE
+)
 
 ui <- navbarPage(
   title = APP_TITLE,
@@ -251,18 +254,40 @@ Grenade Rate =
     "Player Search",
     sidebarLayout(
       sidebarPanel(
+        selectInput(
+          "season_type",
+          "Season Type",
+          choices = c("Playoffs", "Regular Season"),
+          selected = "Playoffs"
+        ),
+        
         selectizeInput(
           "player_id",
           "Player",
-          choices = build_player_choices(cache$player_summary),
-          selected = default_player_id(cache$player_summary),
+          choices = NULL,
+          selected = NULL,
           options = list(placeholder = "Search for a player")
         ),
-        sliderInput("last_n", "Last X games", min = 1, max = 25, value = 10, step = 1),
-        helpText("Uses cached data by default. Rebuild cache from R scripts before deploying updated data.")
+        
+        sliderInput(
+          "last_n",
+          "Games shown",
+          min = 1,
+          max = 82,
+          value = 10,
+          step = 1
+        ),
+        
+        helpText("Uses cached data by season type. Rebuild cache from R scripts before deploying updated data.")
       ),
       mainPanel(
+        tags$div(
+          class = "model-note",
+          textOutput("active_cache_label")
+        ),
+        
         h3(textOutput("player_title")),
+        
         fluidRow(
           column(
             3,
@@ -297,6 +322,7 @@ Grenade Rate =
             )
           )
         ),
+        
         fluidRow(
           column(
             3,
@@ -331,15 +357,20 @@ Grenade Rate =
             )
           )
         ),
+        
         hr(),
+        
         plotly::plotlyOutput("player_sq_plot"),
         br(),
         plotly::plotlyOutput("player_bucket_plot"),
+        
         h4("Game Log"),
+        
         tags$div(
           class = "model-note",
           "Table color bars are scaled within the selected player's visible games."
         ),
+        
         DT::dataTableOutput("player_game_log")
       )
     )
@@ -387,15 +418,69 @@ Grenade Rate =
 )
 
 server <- function(input, output, session) {
-
-  output$home_cache_status <- renderPrint({
-    cache_status(cache)
+  
+  active_cache <- reactive({
+    load_app_cache(
+      season = DEFAULT_SEASON,
+      season_type = input$season_type
+    )
   })
-
+  
+  observe({
+    player_summary <- active_cache()$player_summary
+    
+    updateSelectizeInput(
+      session,
+      "player_id",
+      choices = build_player_choices(player_summary),
+      selected = default_player_id(player_summary),
+      server = TRUE
+    )
+  })
+  
+  observe({
+    req(input$player_id)
+    
+    available_games <- active_cache()$game_summary |>
+      dplyr::filter(.data$player_id == as.character(input$player_id)) |>
+      dplyr::distinct(.data$game_id) |>
+      nrow()
+    
+    validate(need(available_games > 0, "No games available for selected player."))
+    
+    current_value <- if (is.null(input$last_n)) 10 else input$last_n
+    
+    updateSliderInput(
+      session,
+      "last_n",
+      max = available_games,
+      value = min(current_value, available_games)
+    )
+  })
+  
+  output$active_cache_label <- renderText({
+    metadata <- active_cache()$metadata
+    
+    paste0(
+      "Loaded cache: ",
+      metadata$season,
+      " / ",
+      metadata$season_type,
+      " | Players: ",
+      metadata$players_processed,
+      " | Games: ",
+      metadata$games_processed
+    )
+  })
+  
+  output$home_cache_status <- renderPrint({
+    cache_status(active_cache())
+  })
+  
   output$methodology_fields <- DT::renderDataTable({
     methodology_field_table()
   }, options = list(pageLength = 20))
-
+  
   selected_player_id <- reactive({
     req(input$player_id)
     as.character(input$player_id)
@@ -405,7 +490,7 @@ server <- function(input, output, session) {
     req(selected_player_id(), input$last_n)
     
     df <- get_player_games(
-      game_summary = cache$game_summary,
+      game_summary = active_cache()$game_summary,
       selected_player_id = selected_player_id(),
       last_n = input$last_n
     )
@@ -420,8 +505,8 @@ server <- function(input, output, session) {
   selected_player_summary <- reactive({
     req(selected_player_id())
     
-    df <- cache$player_summary |>
-      filter(.data$player_id == selected_player_id())
+    df <- active_cache()$player_summary |>
+      dplyr::filter(.data$player_id == selected_player_id())
     
     validate(
       need(nrow(df) > 0, "No player summary found for this player.")
@@ -432,7 +517,7 @@ server <- function(input, output, session) {
   
   selected_game_ids <- reactive({
     selected_games() |>
-      pull(game_id) |>
+      dplyr::pull(game_id) |>
       unique()
   })
   
@@ -440,8 +525,8 @@ server <- function(input, output, session) {
     pid <- selected_player_id()
     gids <- selected_game_ids()
     
-    df <- cache$shot_events |>
-      filter(
+    df <- active_cache()$shot_events |>
+      dplyr::filter(
         .data$player_id == pid,
         .data$game_id %in% gids
       )
@@ -452,11 +537,11 @@ server <- function(input, output, session) {
     
     df
   })
-
+  
   output$player_title <- renderText({
     selected_games()$player_name[1]
   })
-
+  
   output$player_games <- renderText({
     nrow(selected_games())
   })
@@ -491,11 +576,13 @@ server <- function(input, output, session) {
   output$player_grenade_rate <- renderText({
     scales::percent(selected_player_summary()$grenade_rate, accuracy = 0.1)
   })
-
+  
   output$player_sq_plot <- plotly::renderPlotly({
     df <- selected_games() |>
-      mutate(
-        game_label_axis = glue::glue("{format(game_date, '%b %d')}<br>{matchup}"),
+      dplyr::mutate(
+        opponent = stringr::str_extract(matchup, "(?<=@ |vs\\. )[A-Z]{2,3}"),
+        home_away = dplyr::if_else(stringr::str_detect(matchup, "@"), "@", "vs"),
+        game_label_axis = glue::glue("{format(game_date, '%b %d')}<br>{home_away} {opponent}"),
         game_label_axis = factor(game_label_axis, levels = game_label_axis),
         hover_label = glue::glue(
           "{matchup}<br>{game_date}<br>Attempt Quality: {round(avg_sq_score, 2)}<br>FGA: {fga}<br>Shot Making: {round(shot_making_score, 2)}<br>Possession Quality: {round(pq_score, 2)}"
@@ -523,7 +610,7 @@ server <- function(input, output, session) {
         y = "Attempt Quality",
         title = "Attempt Quality by Game",
         subtitle = glue::glue("{df$player_name[1]} | Grenades excluded from average")
-      ) + 
+      ) +
       theme_minimal(base_size = 12) +
       theme(
         plot.title = element_text(face = "bold", size = 13),
@@ -534,39 +621,73 @@ server <- function(input, output, session) {
     
     plotly::ggplotly(p, tooltip = "text")
   })
-
+  
   output$player_bucket_plot <- plotly::renderPlotly({
+    bucket_levels <- c("9", "7", "5", "3", "1", "Grenade")
+    
+    bucket_colors <- c(
+      "9" = "#1A9850",       # best
+      "7" = "#91CF60",
+      "5" = "#FEE08B",
+      "3" = "#FC8D59",
+      "1" = "#D73027",       # worst
+      "Grenade" = "#6A3D9A"  # separate bailout bucket
+    )
+    
     df <- selected_player_shots() |>
-      count(sq_bucket, name = "attempts") |>
-      mutate(
-        sq_bucket = factor(
-          sq_bucket,
-          levels = c("9", "7", "5", "3", "1", "Grenade")
+      dplyr::mutate(
+        sq_bucket = as.character(.data$sq_bucket),
+        sq_bucket = factor(.data$sq_bucket, levels = bucket_levels)
+      ) |>
+      dplyr::count(.data$sq_bucket, name = "attempts") |>
+      tidyr::complete(
+        sq_bucket = factor(bucket_levels, levels = bucket_levels),
+        fill = list(attempts = 0)
+      ) |>
+      dplyr::mutate(
+        sq_bucket = as.character(.data$sq_bucket),
+        color = bucket_colors[.data$sq_bucket],
+        hover_label = glue::glue(
+          "Attempts: {attempts}"
         )
       )
     
-    p <- ggplot(df, aes(x = sq_bucket, y = attempts, fill = sq_bucket)) +
-      geom_col(alpha = 0.75, show.legend = FALSE) +
-      labs(
-        x = "Attempt Quality Bucket",
-        y = "Attempts",
-        title = "Attempt Bucket Distribution",
-        subtitle = glue::glue("{selected_games()$player_name[1]} | Last {input$last_n} games")
-      ) +
-      theme_minimal(base_size = 12) +
-      theme(
-        plot.title = element_text(face = "bold", size = 13),
-        plot.subtitle = element_text(size = 10, color = "#66615a"),
-        panel.grid.minor = element_blank(),
-        legend.position = "none"
+    plotly::plot_ly(
+      data = df,
+      x = ~sq_bucket,
+      y = ~attempts,
+      type = "bar",
+      marker = list(
+        color = df$color,
+        line = list(color = "rgba(255,255,255,0.45)", width = 1)
+      ),
+      text = ~attempts,
+      textposition = "outside",
+      textangle = 0,
+      textfont = list(size = 12),
+      hovertext = ~hover_label,
+      hoverinfo = "text"
+    ) |>
+      plotly::layout(
+        title = list(
+          text = glue::glue(
+            "Attempt Bucket Distribution<br><sup>{selected_games()$player_name[1]} | Last {input$last_n} games</sup>"
+          )
+        ),
+        xaxis = list(title = "Attempt Quality Bucket"),
+        yaxis = list(title = "Attempts"),
+        showlegend = FALSE,
+        margin = list(t = 70),
+        uniformtext = list(
+          mode = "show",
+          minsize = 10
+        )
       )
-    
-    plotly::ggplotly(p)
   })
-
+  
   output$player_game_log <- DT::renderDataTable({
     game_log_df <- selected_games() |>
-      select(
+      dplyr::select(
         Date = game_date,
         Matchup = matchup,
         Result = wl,
@@ -585,13 +706,13 @@ server <- function(input, output, session) {
         `Shot Making` = shot_making_score,
         `Possession Quality` = pq_score
       ) |>
-      mutate(
+      dplyr::mutate(
         MIN = round(MIN, 1),
         `Attempt Quality` = round(`Attempt Quality`, 2),
         `Shot Making` = round(`Shot Making`, 2),
         `Possession Quality` = round(`Possession Quality`, 2)
       ) |>
-      arrange(desc(Date))
+      dplyr::arrange(dplyr::desc(Date))
     
     DT::datatable(
       game_log_df,
@@ -633,10 +754,10 @@ server <- function(input, output, session) {
         backgroundPosition = "center"
       )
   })
-
+  
   output$leaderboard_table <- DT::renderDataTable({
     leaderboard_df <- build_leaderboard(
-      player_summary = cache$player_summary,
+      player_summary = active_cache()$player_summary,
       metric = input$leaderboard_metric,
       min_games = input$min_games,
       min_fga = input$min_fga,
@@ -683,9 +804,9 @@ server <- function(input, output, session) {
         backgroundPosition = "center"
       )
   })
-
+  
   output$pipeline_status <- renderPrint({
-    cache_status(cache)
+    cache_status(active_cache())
   })
   
   output$missing_fields_table <- DT::renderDataTable({

@@ -51,7 +51,7 @@ test_players_30_archetype_sample <- c(
   "1628969", # Mikal Bridges
   
   # Bigs / rim pressure / post hubs / finishers
-  "203507",  # Giannis Antetokounmpo
+  "1627783", # Pascal Siakam
   "1626157", # Karl-Anthony Towns
   "1630578", # Alperen Sengun
   "1630596", # Evan Mobley
@@ -153,12 +153,41 @@ test_players_50_playoff_sample <- c(
 ) |>
   unique()
 
-test_players_regular_season_small <- c(
+test_players_regular_season_25 <- c(
+  # Primary creators / offensive engines
   "1628983", # Shai Gilgeous-Alexander
   "203999",  # Nikola Jokic
-  "201939",  # Stephen Curry
   "1629029", # Luka Doncic
-  "1630162"  # Anthony Edwards
+  "1628973", # Jalen Brunson
+  "1630169", # Tyrese Haliburton
+  
+  # Scoring guards / wings
+  "201939",  # Stephen Curry
+  "1630162", # Anthony Edwards
+  "1628378", # Donovan Mitchell
+  "1628369", # Jayson Tatum
+  "1627759", # Jaylen Brown
+  
+  # Secondary creators / versatile forwards
+  "2544",    # LeBron James
+  "1631114", # Jalen Williams
+  "1631094", # Paolo Banchero
+  "1628969", # Mikal Bridges
+  "202710",  # Jimmy Butler III
+  
+  # Bigs / post hubs / stretch bigs
+  "203507",  # Giannis Antetokounmpo
+  "1630578", # Alperen Sengun
+  "1626157", # Karl-Anthony Towns
+  "1630596", # Evan Mobley
+  "1631096", # Chet Holmgren
+  
+  # Finishers / role players / connectors
+  "203497",  # Rudy Gobert
+  "1628392", # Isaiah Hartenstein
+  "1628384", # OG Anunoby
+  "1627936", # Alex Caruso
+  "201144"   # Mike Conley
 )
 
 # Player archetype labels ------------------------------------------------------
