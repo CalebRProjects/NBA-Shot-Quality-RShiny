@@ -18,7 +18,7 @@ get_cache_dir <- function(season = APP_SEASON, season_type = APP_SEASON_TYPE) {
   )
 }
 
-get_cache_files <- function(season = APP_SEASON, season_type = APP_SEASON_TYPE) {
+get_cache_files <- function(season = DEFAULT_SEASON, season_type = DEFAULT_SEASON_TYPE) {
   cache_dir <- get_cache_dir(season, season_type)
   
   list(
@@ -26,6 +26,7 @@ get_cache_files <- function(season = APP_SEASON, season_type = APP_SEASON_TYPE) 
     player_lookup = file.path(cache_dir, "player_lookup.rds"),
     game_logs = file.path(cache_dir, "game_logs.rds"),
     shot_events = file.path(cache_dir, "shot_events_scored.rds"),
+    expected_points = file.path(cache_dir, "expected_points_by_bucket.rds"),
     game_summary = file.path(cache_dir, "game_summary.rds"),
     player_summary = file.path(cache_dir, "player_summary.rds")
   )

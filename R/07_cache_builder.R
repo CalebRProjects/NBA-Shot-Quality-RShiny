@@ -3,11 +3,13 @@
 #
 # Example:
 #   source("R/07_cache_builder.R")
+#   source("R/10_test_players.R")
 #   build_sq_cache(
-#     player_ids = c("203999", "1629029", "1628369"),
+#     player_ids = test_players_default,
 #     season = "2024-25",
 #     season_type = "Playoffs",
 #     force_refresh = TRUE
+#   )
 
 required_pkgs <- c(
   "tidyverse", "hoopR", "janitor", "lubridate",
@@ -25,6 +27,7 @@ source("R/06_possession_quality.R")
 source("R/08_player_summaries.R")
 source("R/02_player_lookup.R")
 source("R/12_shot_profile.R")
+source("R/13_cache_paths.R")
 
 build_sq_cache <- function(
     player_ids,
@@ -38,7 +41,14 @@ build_sq_cache <- function(
   safe_dir_create(cache_dir)
   
   if (!force_refresh && all(file.exists(unlist(cache_files)))) {
-    message("Cache already exists for ", season, " / ", season_type, ". Use force_refresh = TRUE to rebuild.")
+    message(
+      "Cache already exists for ",
+      season,
+      " / ",
+      season_type,
+      ". Use force_refresh = TRUE to rebuild."
+    )
+    
     return(load_app_cache(season = season, season_type = season_type))
   }
   
@@ -49,13 +59,17 @@ build_sq_cache <- function(
   )
   
   if (nrow(game_logs) == 0) {
-    stop("No game logs returned. Check player IDs, season, season_type, or NBA.com availability.")
+    stop(
+      "No game logs returned. Check player IDs, season, season_type, or NBA.com availability."
+    )
   }
   
   game_ids <- unique(game_logs$game_id)
   
   pbp <- pull_many_game_pbp(game_ids)
+  
   shot_events <- filter_shot_events(pbp)
+  
   scored_shots <- score_shot_quality(shot_events)
   
   pbp_available_game_ids <- scored_shots |>
@@ -87,8 +101,19 @@ build_sq_cache <- function(
   scored_shots <- scored_shots |>
     dplyr::filter(.data$game_id %in% unique(game_logs$game_id))
   
+  expected_points_table <- build_expected_points_by_bucket(scored_shots)
+  
+  scored_shots <- apply_expected_points(
+    scored_shots = scored_shots,
+    expected_points_table = expected_points_table
+  )
+  
   shot_game_summary <- build_shot_game_summary(scored_shots)
-  game_summary <- calculate_possession_quality(game_logs, shot_game_summary)
+  
+  game_summary <- calculate_possession_quality(
+    game_logs = game_logs,
+    shot_game_summary = shot_game_summary
+  )
   
   player_summary <- build_player_summary(game_summary)
   
@@ -132,13 +157,15 @@ build_sq_cache <- function(
     games_processed = dplyr::n_distinct(game_summary$game_id),
     pbp_missing_games_count = length(missing_pbp_game_ids),
     pbp_missing_games = missing_pbp_game_ids,
-    shot_events_processed = nrow(scored_shots)
+    shot_events_processed = nrow(scored_shots),
+    expected_points_source = "sample_average_by_bucket_with_placeholder_fallback"
   )
   
   safe_write_rds(metadata, cache_files$metadata)
   safe_write_rds(player_lookup, cache_files$player_lookup)
   safe_write_rds(game_logs, cache_files$game_logs)
   safe_write_rds(scored_shots, cache_files$shot_events)
+  safe_write_rds(expected_points_table, cache_files$expected_points)
   safe_write_rds(game_summary, cache_files$game_summary)
   safe_write_rds(player_summary, cache_files$player_summary)
   
@@ -170,6 +197,7 @@ load_app_cache <- function(
     player_lookup = readRDS(cache_files$player_lookup),
     game_logs = readRDS(cache_files$game_logs),
     shot_events = readRDS(cache_files$shot_events),
+    expected_points = readRDS(cache_files$expected_points),
     game_summary = readRDS(cache_files$game_summary),
     player_summary = readRDS(cache_files$player_summary)
   )

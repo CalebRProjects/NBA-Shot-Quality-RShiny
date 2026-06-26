@@ -81,27 +81,27 @@ ui <- navbarPage(
       tags$div(
         class = "alert alert-info",
         strong("Current model status: "),
-        "This is a public-data proxy model. It uses NBA.com game logs and play-by-play data through hoopR. It does not fully capture contest quality, creation burden, defensive context, or film-based possession details yet."
+        "This is a public-data proxy model. It uses NBA.com game logs and play-by-play data through hoopR. It does not fully capture contest quality, creation burden, defender distance, defensive context, or film-based possession details yet."
       ),
       
       h3("Attempt Quality Score"),
       p(
-        "Attempt Quality Score measures the quality of the shots in a player's shot diet. ",
-        "It is not the same as shot-making, and it does not fully capture how difficult those shots were to create."
+        "Attempt Quality Score measures the quality of the shots in a player's shot profile. ",
+        "It is separate from shot-making, and it does not fully capture how difficult those shots were to create."
       ),
       p(
-        "This means play-finishing bigs or rim-heavy players may score highly because they take a large share of high-value attempts. ",
-        "Primary creators may score lower because their role often requires pull-ups, late-clock shots, and self-created jumpers."
+        "This means play-finishing bigs or rim-heavy players may score highly because they take a large share of clean, high-value attempts. ",
+        "Primary creators may score lower because their role often requires pull-ups, late-clock shots, deeper attempts, and self-created jumpers."
       ),
       
       h4("Current attempt buckets"),
       tags$ul(
-        tags$li(strong("9:"), " Highest-quality attempts, such as dunks, layups, and very strong rim attempts."),
-        tags$li(strong("7:"), " Strong-quality looks."),
-        tags$li(strong("5:"), " Neutral looks."),
-        tags$li(strong("3:"), " Difficult looks."),
-        tags$li(strong("1:"), " Very poor attempts."),
-        tags$li(strong("Grenade:"), " Late-clock bailout or heave attempts tracked separately so they do not overly punish attempt quality.")
+        tags$li(strong("9:"), " Elite rim attempts, such as dunks, layups, and very strong close-range attempts."),
+        tags$li(strong("7:"), " High-value attempts, including normal threes and strong interior finishing actions."),
+        tags$li(strong("5:"), " Neutral or acceptable attempts, such as short twos and some lower-risk interior looks."),
+        tags$li(strong("3:"), " Lower-value attempts, such as midrange looks, long twos, and deeper/tougher attempts."),
+        tags$li(strong("1:"), " Very low-quality non-grenade attempts."),
+        tags$li(strong("Grenade:"), " Late-clock bailout or heave attempts tracked separately.")
       ),
       
       h4("Attempt Quality formula"),
@@ -129,18 +129,18 @@ Grenade attempts = excluded from Attempt Quality average"
 - seconds_remaining
 
 General rule structure:
-- Close rim attempts and dunk/layup language are pushed toward 9s.
-- Strong rim/paint actions and some high-value looks are pushed toward 7s.
-- Neutral attempts are pushed toward 5s.
-- Difficult attempts are pushed toward 3s or 1s.
+- Elite rim attempts are pushed toward 9s.
+- Normal threes and strong interior finishing actions are pushed toward 7s.
+- Neutral short/interior attempts are pushed toward 5s.
+- Midrange, long twos, and tougher attempts are pushed toward 3s or 1s.
 - Very late, very deep attempts are classified as Grenades.
 - Late-clock non-grenade attempts can be bumped up to avoid over-penalizing bailout shots."
       ),
       
       h3("Shot-Making Layer"),
       p(
-        "Shot making is separated from attempt quality. The current version compares actual points to placeholder expected values by attempt bucket. ",
-        "A future version should replace these placeholders with league-average points per shot by bucket."
+        "Shot Making is separated from Attempt Quality. ",
+        "Attempt Quality estimates the type of shot a player got. Shot Making measures how much the player outperformed or underperformed the expected value of those attempts."
       ),
       
       h4("Shot Making formula"),
@@ -149,25 +149,43 @@ General rule structure:
 
 At the shot level:
 Actual Points = shot_value if made, otherwise 0
-Expected Points = placeholder expected value for the assigned attempt bucket
+
+Expected Points =
+  expected points for the assigned Attempt Quality bucket
 
 At the game/player level:
 Shot Making = sum(Actual Points - Expected Points)"
       ),
       
-      h4("Current placeholder expected points"),
+      h4("Expected points by bucket"),
+      p(
+        "Expected points are now cache-specific. For each season type, the app calculates the average points per attempt within each Attempt Quality bucket from the cached shot sample. ",
+        "This means regular season and playoff caches can have different expected values."
+      ),
+      p(
+        "Low-volume buckets use fallback values so small samples do not distort the model. ",
+        "For example, very low-quality attempts and Grenades may not appear often enough in the cache to produce stable estimates."
+      ),
+      
       tags$pre(
-        "9 bucket = 1.35 expected points
-7 bucket = 1.15 expected points
-5 bucket = 1.00 expected points
-3 bucket = 0.80 expected points
-1 bucket = 0.55 expected points
-Grenade = 0.20 expected points"
+        "Expected Points =
+  sample average points per attempt for the shot's bucket
+
+If a bucket has too few attempts:
+  Expected Points = fallback expected points
+
+Current fallback values:
+9 bucket = 1.35
+7 bucket = 1.15
+5 bucket = 1.00
+3 bucket = 0.80
+1 bucket = 0.55
+Grenade = 0.20"
       ),
       
       h3("Possession Quality Score"),
       p(
-        "Possession Quality Score is a broader placeholder value score that combines available box-score events, attempt quality, and shot-making. ",
+        "Possession Quality Score is a broader placeholder value score that combines available box-score events, Attempt Quality, and Shot Making. ",
         "The current weights are not final and should be treated as transparent working assumptions."
       ),
       
@@ -191,7 +209,7 @@ Shot Process Component =
   Attempt Quality * FGA / 10
 
 Shot Making Component =
-  sum(Actual Points - Expected Points by Attempt Bucket)"
+  sum(Actual Points - Expected Points by Attempt Quality bucket)"
       ),
       
       h4("Current placeholder possession weights"),
@@ -241,8 +259,8 @@ Grenade Rate =
         tags$li("Offensive rebounds"),
         tags$li("Personal fouls"),
         tags$li("Personal fouls drawn"),
-        tags$li("Attempt quality process component"),
-        tags$li("Shot-making component")
+        tags$li("Attempt Quality process component"),
+        tags$li("Shot Making component")
       ),
       
       h3("Automation Status"),
@@ -411,6 +429,14 @@ Grenade Rate =
       br(),
       h2("Data / Pipeline Status"),
       verbatimTextOutput("pipeline_status"),
+      
+      h3("Expected Points by Attempt Quality Bucket"),
+      tags$div(
+        class = "model-note",
+        "Expected points are calculated from the selected cache sample by bucket. Low-volume buckets use fallback values."
+      ),
+      DT::dataTableOutput("expected_points_table"),
+      
       h3("Missing or Estimated Fields"),
       DT::dataTableOutput("missing_fields_table")
     )
@@ -812,6 +838,39 @@ server <- function(input, output, session) {
   output$missing_fields_table <- DT::renderDataTable({
     missing_or_estimated_fields()
   }, options = list(pageLength = 20))
+  
+  output$expected_points_table <- DT::renderDataTable({
+    expected_df <- active_cache()$expected_points |>
+      dplyr::mutate(
+        sample_expected_points = round(.data$sample_expected_points, 3),
+        fallback_expected_points = round(.data$fallback_expected_points, 3),
+        expected_points = round(.data$expected_points, 3),
+        source = dplyr::if_else(
+          .data$expected_points == .data$fallback_expected_points &
+            .data$attempts < 500,
+          "Fallback",
+          "Sample"
+        )
+      ) |>
+      dplyr::select(
+        Bucket = sq_bucket,
+        Attempts = attempts,
+        `Sample Expected Points` = sample_expected_points,
+        `Fallback Expected Points` = fallback_expected_points,
+        `Final Expected Points` = expected_points,
+        Source = source
+      )
+    
+    DT::datatable(
+      expected_df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 6,
+        dom = "t",
+        scrollX = TRUE
+      )
+    )
+  })
   
 }
 
