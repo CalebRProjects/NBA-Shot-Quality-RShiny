@@ -42,36 +42,104 @@ default_cache <- load_app_cache(
   season_type = DEFAULT_SEASON_TYPE
 )
 
+
 ui <- navbarPage(
   title = APP_TITLE,
-  header = tags$head(
-    includeCSS("www/styles.css")
+  
+  header = tagList(
+    tags$head(
+      includeCSS("www/styles.css")
+    ),
+    tags$div(
+      class = "global-control-bar",
+      tags$div(
+        class = "global-control-inner",
+        selectInput(
+          "season_type",
+          "Season Type",
+          choices = c("Playoffs", "Regular Season"),
+          selected = DEFAULT_SEASON_TYPE,
+          width = "220px"
+        ),
+        tags$div(
+          class = "global-control-note",
+          textOutput("global_cache_label")
+        )
+      )
+    )
   ),
-
+  
   tabPanel(
     "Home",
     fluidPage(
       br(),
-      h2("NBA Attempt Quality + Overall Possession Quality"),
-      p("A public-data proxy model for evaluating player shot diet, shot-making, and broader possession value."),
+      h2("NBA Attempt Quality + Possession Quality"),
+      p(
+        "A public-data proxy model for evaluating player shot diet, shot-making, and broader possession value."
+      ),
+      
       tags$div(
         class = "alert alert-warning",
         strong("Important: "),
-        "This is not the final film model. It uses NBA.com public data through hoopR, cached locally, and applies transparent placeholder rules where richer tracking or manual tagging is not available."
+        "This is not a final film or tracking model. It uses NBA.com public data through hoopR, cached locally, and applies transparent proxy rules where richer tracking or manual tagging is not available."
       ),
+      
+      fluidRow(
+        column(
+          3,
+          tags$div(
+            class = "info-card",
+            h4("Attempt Quality"),
+            p("Measures the quality of a player's shot profile using transparent bucket rules.")
+          )
+        ),
+        column(
+          3,
+          tags$div(
+            class = "info-card",
+            h4("Shot Making"),
+            p("Compares actual points to expected points for each attempt bucket.")
+          )
+        ),
+        column(
+          3,
+          tags$div(
+            class = "info-card",
+            h4("Possession Quality"),
+            p("Combines box-score events, shot process, and shot-making into one proxy value score.")
+          )
+        ),
+        column(
+          3,
+          tags$div(
+            class = "info-card",
+            h4("Shot Profile"),
+            p("Adds context through rim rate, 3PA rate, midrange rate, shot distance, and Grenade rate.")
+          )
+        )
+      ),
+      
       h4("Current pipeline"),
       tags$ol(
         tags$li("NBA.com data via hoopR"),
-        tags$li("Player game logs and play-by-play shot events"),
-        tags$li("Attempt quality bucket rules"),
-        tags$li("Game-level attempt quality and possession quality summaries"),
-        tags$li("Player search and leaderboards")
+        tags$li("Cached player game logs and play-by-play shot events"),
+        tags$li("Attempt Quality bucket rules"),
+        tags$li("Cache-specific expected points by bucket"),
+        tags$li("Game-level and player-level summaries"),
+        tags$li("Player search, leaderboards, and data quality checks")
       ),
+      
+      h4("Model caveat"),
+      tags$div(
+        class = "model-note",
+        "Attempt Quality should be read as shot profile quality, not total offensive skill. The current version does not yet include defender distance, creation burden, full tracking context, or film-based possession detail."
+      ),
+      
       h4("Cache status"),
       verbatimTextOutput("home_cache_status")
     )
   ),
-
+  
   tabPanel(
     "Methodology",
     fluidPage(
@@ -159,7 +227,7 @@ Shot Making = sum(Actual Points - Expected Points)"
       
       h4("Expected points by bucket"),
       p(
-        "Expected points are now cache-specific. For each season type, the app calculates the average points per attempt within each Attempt Quality bucket from the cached shot sample. ",
+        "Expected points are cache-specific. For each season type, the app calculates the average points per attempt within each Attempt Quality bucket from the cached shot sample. ",
         "This means regular season and playoff caches can have different expected values."
       ),
       p(
@@ -267,18 +335,11 @@ Grenade Rate =
       DT::dataTableOutput("methodology_fields")
     )
   ),
-
+  
   tabPanel(
     "Player Search",
     sidebarLayout(
       sidebarPanel(
-        selectInput(
-          "season_type",
-          "Season Type",
-          choices = c("Playoffs", "Regular Season"),
-          selected = "Playoffs"
-        ),
-        
         selectizeInput(
           "player_id",
           "Player",
@@ -298,6 +359,7 @@ Grenade Rate =
         
         helpText("Uses cached data by season type. Rebuild cache from R scripts before deploying updated data.")
       ),
+      
       mainPanel(
         tags$div(
           class = "model-note",
@@ -393,13 +455,13 @@ Grenade Rate =
       )
     )
   ),
-
+  
   tabPanel(
     "Leaderboards",
     sidebarLayout(
       sidebarPanel(
-        numericInput("min_games", "Minimum games", value = 2, min = 1, step = 1),
-        numericInput("min_fga", "Minimum FGA", value = 10, min = 0, step = 1),
+        numericInput("min_games", "Minimum games", value = 3, min = 1, step = 1),
+        numericInput("min_fga", "Minimum FGA", value = 25, min = 0, step = 1),
         selectInput(
           "leaderboard_metric",
           "Metric",
@@ -414,7 +476,7 @@ Grenade Rate =
         h3("Leaderboard"),
         tags$div(
           class = "model-note",
-          p("Default leaderboard reflects the currently loaded cache."),
+          p("Default leaderboard reflects the currently selected cache."),
           p("Attempt Quality reflects shot diet quality. It does not fully capture creation burden, contest quality, or defensive context."),
           p("Color bars use fixed reference ranges: Attempt Quality 1–9, Shot Making -5 to +5, and Possession Quality 0–30.")
         ),
@@ -422,13 +484,20 @@ Grenade Rate =
       )
     )
   ),
-
+  
   tabPanel(
     "Data / Pipeline Status",
     fluidPage(
       br(),
       h2("Data / Pipeline Status"),
       verbatimTextOutput("pipeline_status"),
+      
+      h3("Cache Quality Summary"),
+      tags$div(
+        class = "model-note",
+        "This table summarizes the currently selected cache and helps flag missing play-by-play or incomplete player processing."
+      ),
+      DT::dataTableOutput("data_quality_table"),
       
       h3("Expected Points by Attempt Quality Bucket"),
       tags$div(
@@ -443,12 +512,28 @@ Grenade Rate =
   )
 )
 
+
 server <- function(input, output, session) {
   
   active_cache <- reactive({
     load_app_cache(
       season = DEFAULT_SEASON,
       season_type = input$season_type
+    )
+  })
+  
+  output$global_cache_label <- renderText({
+    metadata <- active_cache()$metadata
+    
+    paste0(
+      metadata$season,
+      " / ",
+      metadata$season_type,
+      " cache loaded | ",
+      metadata$players_processed,
+      " players | ",
+      metadata$games_processed,
+      " games"
     )
   })
   
@@ -483,6 +568,16 @@ server <- function(input, output, session) {
       value = min(current_value, available_games)
     )
   })
+  
+  observeEvent(input$season_type, {
+    if (input$season_type == "Regular Season") {
+      updateNumericInput(session, "min_games", value = 20)
+      updateNumericInput(session, "min_fga", value = 200)
+    } else {
+      updateNumericInput(session, "min_games", value = 3)
+      updateNumericInput(session, "min_fga", value = 25)
+    }
+  }, ignoreInit = FALSE)
   
   output$active_cache_label <- renderText({
     metadata <- active_cache()$metadata
@@ -652,12 +747,12 @@ server <- function(input, output, session) {
     bucket_levels <- c("9", "7", "5", "3", "1", "Grenade")
     
     bucket_colors <- c(
-      "9" = "#1A9850",       # best
+      "9" = "#1A9850",
       "7" = "#91CF60",
       "5" = "#FEE08B",
       "3" = "#FC8D59",
-      "1" = "#D73027",       # worst
-      "Grenade" = "#6A3D9A"  # separate bailout bucket
+      "1" = "#D73027",
+      "Grenade" = "#6A3D9A"
     )
     
     df <- selected_player_shots() |>
@@ -835,9 +930,46 @@ server <- function(input, output, session) {
     cache_status(active_cache())
   })
   
-  output$missing_fields_table <- DT::renderDataTable({
-    missing_or_estimated_fields()
-  }, options = list(pageLength = 20))
+  output$data_quality_table <- DT::renderDataTable({
+    metadata <- active_cache()$metadata
+    
+    quality_df <- tibble::tibble(
+      Field = c(
+        "Season",
+        "Season Type",
+        "Cache Built At",
+        "Players Requested",
+        "Players Processed",
+        "Games Requested",
+        "Games Processed",
+        "Missing PBP Games",
+        "Shot Events Processed",
+        "Expected Points Source"
+      ),
+      Value = c(
+        metadata$season,
+        metadata$season_type,
+        metadata$built_at,
+        length(metadata$players_requested),
+        metadata$players_processed,
+        metadata$games_requested,
+        metadata$games_processed,
+        metadata$pbp_missing_games_count,
+        metadata$shot_events_processed,
+        metadata$expected_points_source
+      )
+    )
+    
+    DT::datatable(
+      quality_df,
+      rownames = FALSE,
+      options = list(
+        pageLength = 10,
+        dom = "t",
+        scrollX = TRUE
+      )
+    )
+  })
   
   output$expected_points_table <- DT::renderDataTable({
     expected_df <- active_cache()$expected_points |>
@@ -846,8 +978,7 @@ server <- function(input, output, session) {
         fallback_expected_points = round(.data$fallback_expected_points, 3),
         expected_points = round(.data$expected_points, 3),
         source = dplyr::if_else(
-          .data$expected_points == .data$fallback_expected_points &
-            .data$attempts < 500,
+          .data$attempts < 500,
           "Fallback",
           "Sample"
         )
@@ -872,6 +1003,10 @@ server <- function(input, output, session) {
     )
   })
   
+  output$missing_fields_table <- DT::renderDataTable({
+    missing_or_estimated_fields()
+  }, options = list(pageLength = 20))
 }
+
 
 shinyApp(ui, server)

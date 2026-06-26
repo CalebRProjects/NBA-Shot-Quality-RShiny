@@ -136,3 +136,46 @@ input[type="number"] {
   border: none;
   padding: 0;
 }
+
+/* Global style settings ----------------------------------------------------*/
+
+.global-control-bar {
+  background: #f7f3ea;
+  border-bottom: 1px solid #ded6c8;
+  padding: 10px 18px;
+}
+
+.global-control-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.global-control-inner .form-group {
+  margin-bottom: 0;
+}
+
+.global-control-note {
+  color: #5f5a52;
+  font-size: 0.95rem;
+  padding-top: 18px;
+}
+
+.info-card {
+  background: #fffaf0;
+  border: 1px solid #e3d8c5;
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 150px;
+  margin-bottom: 16px;
+}
+
+.info-card h4 {
+  margin-top: 0;
+  font-weight: 700;
+}
+
+.info-card p {
+  color: #5f5a52;
+}
