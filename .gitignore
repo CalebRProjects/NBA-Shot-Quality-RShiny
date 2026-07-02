@@ -1,6 +1,14 @@
-data/cache/**/*.rds
-data/cache/*.rds
 .Rhistory
 .RData
 .Rproj.user/
 .DS_Store
+
+# Local raw/processed/cache data
+data/raw_local/**
+data/processed/**
+data/cache/**
+
+# Keep folder placeholders
+!data/raw_local/.gitkeep
+!data/processed/.gitkeep
+!data/cache/.gitkeep

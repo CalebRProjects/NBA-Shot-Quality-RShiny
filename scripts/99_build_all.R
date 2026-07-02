@@ -1,0 +1,7 @@
+source("scripts/02_build_all_enriched_shots.R")
+source("scripts/03_build_all_matchups.R")
+source("scripts/04_build_attempt_quality_outputs.R")
+source("scripts/05_build_player_outputs.R")
+source("scripts/06_build_possession_quality.R")
+source("scripts/07_build_combined_player_outputs.R")
+source("scripts/08_build_app_cache.R")
